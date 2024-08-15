@@ -14,19 +14,23 @@ RUN apt update && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
-RUN git clone https://github.com/FunnyPocketBook/feature-3dgs.git --recursive && \
+RUN git clone https://github.com/FunnyPocketBook/3dgs-mcmc.git --recursive && \
     git clone https://github.com/RongLiu-Leo/Gaussian-Splatting-Monitor.git
 
-WORKDIR /workspace/feature-3dgs/src
-RUN conda env create --file environment.yml
+WORKDIR /workspace/3dgs-mcmc/src
+RUN conda create -y -n 3dgs-mcmc python=3.8
 
-SHELL ["conda", "run", "-n", "feature_3dgs", "/bin/bash", "-c"]
+SHELL ["conda", "run", "-n", "3dgs-mcmc", "/bin/bash", "-c"]
 
-RUN pip install -r encoders/lseg_encoder/requirements.txt && \
-    pip install -e encoders/sam_encoder && \
-    pip install opencv-python pycocotools matplotlib onnxruntime onnx && \
-    pip install git+https://github.com/nerfstudio-project/gsplat.git@v0.1.10 && \
-    pip install git+https://github.com/zhanghang1989/PyTorch-Encoding/
+RUN pip install plyfile tqdm torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117
+RUN conda install cudatoolkit-dev=11.7 -c conda-forge
+RUN pip install submodules/diff-gaussian-rasterization submodules/simple-knn
+
+# RUN pip install -r encoders/lseg_encoder/requirements.txt && \
+#     pip install -e encoders/sam_encoder && \
+#     pip install opencv-python pycocotools matplotlib onnxruntime onnx && \
+#     pip install git+https://github.com/nerfstudio-project/gsplat.git@v0.1.10 && \
+#     pip install git+https://github.com/zhanghang1989/PyTorch-Encoding/
 
 WORKDIR /workspace/Gaussian-Splatting-Monitor/SIBR_viewers/cmake/linux
 RUN sed -i 's/find_package(OpenCV 4\.5 REQUIRED)/find_package(OpenCV 4.2 REQUIRED)/g' dependencies.cmake && \
@@ -56,9 +60,9 @@ RUN apt update && \
 COPY --from=builder /opt/miniforge3 /opt/miniforge3
 COPY --from=builder /workspace/Gaussian-Splatting-Monitor/SIBR_viewers /workspace/SIBR_viewers
 
-WORKDIR /workspace/feature-3dgs
+WORKDIR /workspace/3dgs-mcmc
 
 RUN conda init bash
-RUN echo "source activate feature_3dgs" >> ~/.bashrc
+RUN echo "source activate 3dgs-mcmc" >> ~/.bashrc
 
 CMD ["tail", "-f", "/dev/null"]

@@ -1,0 +1,26 @@
+services:
+  3dgs-mcmc:
+    container_name: 3dgs-mcmc
+    image: 3dgs-mcmc:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    tty: true
+    volumes:
+      - /home/dangy/git/3dgs-mcmc/src:/workspace/3dgs-mcmc
+      - /home/dangy/data:/workspace/data
+      - /home/dangy/output:/workspace/output
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ~/.Xauthority:/root/.Xauthority:rw
+    environment:
+      - DISPLAY=$DISPLAY
+    deploy:
+      resources:
+        limits:
+          memory: 12G
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [compute,utility,graphics]
+
