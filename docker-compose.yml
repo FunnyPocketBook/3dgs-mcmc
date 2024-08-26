@@ -1,15 +1,15 @@
 services:
   3dgs-mcmc:
     container_name: 3dgs-mcmc
-    image: 3dgs-mcmc:dev
+    image: gitlab-int.nlr.nl:5050/dang/3dgs-mcmc:latest
     build:
       context: .
       dockerfile: Dockerfile
     tty: true
     volumes:
-      - /home/dangy/git/3dgs-mcmc/src:/workspace/3dgs-mcmc
-      - /home/dangy/data:/workspace/data
-      - /home/dangy/output:/workspace/output
+      - /home/dang/git/3dgs-mcmc/src:/workspace/3dgs-mcmc
+      - /home/dang/data:/workspace/data
+      - /home/dang/output:/workspace/output
       - /tmp/.X11-unix:/tmp/.X11-unix
       - ~/.Xauthority:/root/.Xauthority:rw
     environment:
