@@ -191,7 +191,7 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                 for idx, viewpoint in enumerate(config['cameras']):
                     image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
-                    if mask:
+                    if masks:
                         mask = viewpoint.mask.cuda()
                         mask = mask.repeat(3, 1, 1)
                         gt_image[~mask] = 0
