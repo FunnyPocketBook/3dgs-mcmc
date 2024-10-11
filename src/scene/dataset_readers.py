@@ -68,7 +68,7 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
-def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, masks_folder):
+def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, masks_folder=None):
     cam_infos = []
     for idx, key in enumerate(cam_extrinsics):
         sys.stdout.write('\r')
@@ -100,9 +100,11 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, masks_folde
         image_path = os.path.join(images_folder, os.path.basename(extr.name))
         image_name = os.path.basename(image_path).split(".")[0]
         image = Image.open(image_path)
-
-        mask_path = os.path.join(masks_folder, image_name + ".png")
-        mask = Image.open(mask_path)
+        mask_path = None
+        mask = None
+        if masks_folder:
+            mask_path = os.path.join(masks_folder, image_name + ".png")
+            mask = Image.open(mask_path)
 
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                               image_path=image_path, image_name=image_name, width=width, height=height,
@@ -137,7 +139,7 @@ def storePly(path, xyz, rgb):
     ply_data = PlyData([vertex_element])
     ply_data.write(path)
 
-def readColmapSceneInfo(path, images, eval, llffhold=8, init_type="sfm", num_pts=100000):
+def readColmapSceneInfo(path, images, eval, llffhold=8, init_type="sfm", num_pts=100000, masks=None):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -150,7 +152,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, init_type="sfm", num_pts
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
 
     reading_dir = "images" if images == None else images
-    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), masks_folder=os.path.join(path, "masks"))
+    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), masks_folder=os.path.join(path, "masks") if masks else None)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
     if eval:
@@ -160,7 +162,8 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, init_type="sfm", num_pts
         train_cam_infos = cam_infos
         test_cam_infos = []
 
-    masks = [c.mask for c in cam_infos if c.mask is not None]
+    if masks:
+        masks = [c.mask for c in cam_infos if c.mask is not None]
     nerf_normalization = getNerfppNorm(train_cam_infos)
 
     if init_type == "sfm":
