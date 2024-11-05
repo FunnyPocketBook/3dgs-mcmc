@@ -1,16 +1,21 @@
-FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel AS builder
+FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-devel AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/opt/miniforge3/bin:$PATH"
 ENV TORCH_CUDA_ARCH_LIST="8.0+PTX"
+ENV CUDA_HOME=/usr/local/cuda
+
+# RUN apt update && \
+#     apt install -y --no-install-recommends libglew-dev libassimp-dev libboost-all-dev libgtk-3-dev \
+#     libopencv-dev libglfw3-dev libavdevice-dev libavcodec-dev libeigen3-dev libxxf86vm-dev \
+#     libembree-dev wget && \
+#     apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN apt update && \
-    apt install -y --no-install-recommends tzdata git libglew-dev libassimp-dev libboost-all-dev libgtk-3-dev \
-    libopencv-dev libglfw3-dev libavdevice-dev libavcodec-dev libeigen3-dev libxxf86vm-dev \
-    libembree-dev wget && \
-    wget -O Miniforge3.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh && \
-    bash Miniforge3.sh -b -p /opt/miniforge3 && \
-    rm Miniforge3.sh && \
+    apt install -y --no-install-recommends libopencv-dev && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
+RUN apt update && \
+    apt install -y --no-install-recommends tzdata git g++ wget && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
@@ -18,13 +23,7 @@ RUN git clone https://github.com/FunnyPocketBook/3dgs-mcmc.git --recursive && \
     git clone https://github.com/RongLiu-Leo/Gaussian-Splatting-Monitor.git
 
 WORKDIR /workspace/3dgs-mcmc/src
-RUN conda create -y -n 3dgs-mcmc python=3.8
-
-SHELL ["conda", "run", "-n", "3dgs-mcmc", "/bin/bash", "-c"]
-
-RUN pip install plyfile tqdm torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117
-RUN conda install cudatoolkit-dev=11.7 -c conda-forge
-RUN pip install submodules/diff-gaussian-rasterization submodules/simple-knn
+RUN pip install plyfile tqdm submodules/diff-gaussian-rasterization submodules/simple-knn/
 
 # RUN pip install -r encoders/lseg_encoder/requirements.txt && \
 #     pip install -e encoders/sam_encoder && \
@@ -32,37 +31,36 @@ RUN pip install submodules/diff-gaussian-rasterization submodules/simple-knn
 #     pip install git+https://github.com/nerfstudio-project/gsplat.git@v0.1.10 && \
 #     pip install git+https://github.com/zhanghang1989/PyTorch-Encoding/
 
-WORKDIR /workspace/Gaussian-Splatting-Monitor/SIBR_viewers/cmake/linux
-RUN sed -i 's/find_package(OpenCV 4\.5 REQUIRED)/find_package(OpenCV 4.2 REQUIRED)/g' dependencies.cmake && \
-    sed -i 's/find_package(embree 3\.0 )/find_package(EMBREE)/g' dependencies.cmake && \
-    mv Modules/FindEmbree.cmake Modules/FindEMBREE.cmake
+# WORKDIR /workspace/Gaussian-Splatting-Monitor/SIBR_viewers/cmake/linux
+# RUN sed -i 's/find_package(OpenCV 4\.5 REQUIRED)/find_package(OpenCV 4.2 REQUIRED)/g' dependencies.cmake && \
+#     sed -i 's/find_package(embree 3\.0 )/find_package(EMBREE)/g' dependencies.cmake && \
+#     mv Modules/FindEmbree.cmake Modules/FindEMBREE.cmake && \
+#     sed -i 's/\bembree\b/embree3/g' ../../src/core/raycaster/CMakeLists.txt
 
-RUN sed -i 's/\bembree\b/embree3/g' ../../src/core/raycaster/CMakeLists.txt
+# WORKDIR /workspace/Gaussian-Splatting-Monitor/SIBR_viewers
+# RUN cmake -Bbuild . -DCMAKE_BUILD_TYPE=Release && \
+#     cmake --build build -j$(nproc) --target install
 
-WORKDIR /workspace/Gaussian-Splatting-Monitor/SIBR_viewers
-RUN cmake -Bbuild . -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build build -j$(nproc) --target install
-
-FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel
+FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/opt/miniforge3/bin:$PATH"
-ENV PATH="/workspace/SIBR_viewers/install/bin:$PATH"
+
+# RUN apt update && \
+#     apt install -y --no-install-recommends vim x11-apps xauth libglew-dev libassimp-dev libboost-all-dev \
+#     libgtk-3-dev libopencv-dev libglfw3-dev libavdevice-dev libavcodec-dev libeigen3-dev \
+#     libxxf86vm-dev libembree-dev software-properties-common && \
+#     add-apt-repository ppa:kisak/kisak-mesa -y && \
+#     apt update && apt -y upgrade && \
+#     apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN apt update && \
-    apt install -y --no-install-recommends tzdata vim x11-apps xauth libglew-dev libassimp-dev libboost-all-dev \
-    libgtk-3-dev libopencv-dev libglfw3-dev libavdevice-dev libavcodec-dev libeigen3-dev \
-    libxxf86vm-dev libembree-dev software-properties-common && \
-    add-apt-repository ppa:kisak/kisak-mesa -y && \
+    apt install -y --no-install-recommends vim software-properties-common && \
     apt update && apt -y upgrade && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /opt/miniforge3 /opt/miniforge3
-COPY --from=builder /workspace/Gaussian-Splatting-Monitor/SIBR_viewers /workspace/SIBR_viewers
+COPY --from=builder /opt/conda /opt/conda
 
 WORKDIR /workspace/3dgs-mcmc
 
-RUN conda init bash
-RUN echo "source activate 3dgs-mcmc" >> ~/.bashrc
 
 CMD ["tail", "-f", "/dev/null"]
