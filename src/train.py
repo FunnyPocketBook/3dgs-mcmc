@@ -100,8 +100,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         if dataset.use_masks:
             mask = viewpoint_cam.mask.cuda()
             mask = mask.repeat(3, 1, 1)
-            gt_image[~mask] = 0
-        Ll1 = l1_loss(image, gt_image)
+            gt_image *= mask
+            Ll1 = l1_loss(image, gt_image, mask)
+        else:
+            Ll1 = l1_loss(image, gt_image)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
 
         loss = loss + args.opacity_reg * torch.abs(gaussians.get_opacity).mean()
@@ -192,9 +194,9 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                     image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
                     if masks:
-                        mask = viewpoint.mask.cuda()
+                        mask = viewpoint.mask_gt.cuda()
                         mask = mask.repeat(3, 1, 1)
-                        gt_image[~mask] = 0
+                        gt_image *= mask
                     if tb_writer and (idx < 5):
                         tb_writer.add_images(config['name'] + "_view_{}/render".format(viewpoint.image_name), image[None], global_step=iteration)
                         if iteration == testing_iterations[0]:
