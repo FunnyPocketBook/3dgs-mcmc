@@ -49,7 +49,8 @@ class ModelParams(ParamGroup):
         self.sh_degree = 3
         self._source_path = ""
         self._model_path = ""
-        self._use_masks = ""
+        self._use_masks = False
+        self.mask_path = ""
         self._images = "images"
         self._resolution = -1
         self._white_background = False
