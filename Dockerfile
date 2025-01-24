@@ -23,7 +23,7 @@ RUN git clone https://github.com/FunnyPocketBook/3dgs-mcmc.git --recursive && \
     git clone https://github.com/RongLiu-Leo/Gaussian-Splatting-Monitor.git
 
 WORKDIR /workspace/3dgs-mcmc/src
-RUN pip install plyfile tqdm submodules/diff-gaussian-rasterization submodules/simple-knn/
+RUN pip install plyfile tqdm tensorboard submodules/diff-gaussian-rasterization submodules/simple-knn/
 
 # RUN pip install -r encoders/lseg_encoder/requirements.txt && \
 #     pip install -e encoders/sam_encoder && \

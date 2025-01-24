@@ -13,6 +13,8 @@ from scene.cameras import Camera
 import numpy as np
 from utils.general_utils import PILtoTorch
 from utils.graphics_utils import fov2focal
+from tqdm import tqdm
+
 
 WARNED = False
 
@@ -40,9 +42,12 @@ def loadCam(args, id, cam_info, resolution_scale):
 
     resized_image_rgb = PILtoTorch(cam_info.image, resolution)
     resized_mask = None
+    resized_mask_gt = None
     if cam_info.mask:
         mask = PILtoTorch(cam_info.mask, resolution)
         resized_mask = mask > 0.5
+        mask_gt = PILtoTorch(cam_info.mask_gt, resolution)
+        resized_mask_gt = mask_gt > 0.5
 
     gt_image = resized_image_rgb[:3, ...]
     loaded_mask = None
@@ -53,14 +58,13 @@ def loadCam(args, id, cam_info, resolution_scale):
     return Camera(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T, 
                   FoVx=cam_info.FovX, FoVy=cam_info.FovY, 
                   image=gt_image, gt_alpha_mask=loaded_mask,
-                  image_name=cam_info.image_name, uid=id, mask=resized_mask, data_device=args.data_device)
+                  image_name=cam_info.image_name, uid=id, mask=resized_mask, mask_gt=resized_mask_gt, data_device=args.data_device)
 
 def cameraList_from_camInfos(cam_infos, resolution_scale, args):
     camera_list = []
 
-    for id, c in enumerate(cam_infos):
+    for id, c in tqdm(enumerate(cam_infos), total=len(cam_infos), desc="Loading cameras"):
         camera_list.append(loadCam(args, id, c, resolution_scale))
-
     return camera_list
 
 def camera_to_JSON(id, camera : Camera):

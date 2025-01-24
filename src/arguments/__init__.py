@@ -26,16 +26,19 @@ class ParamGroup:
                 key = key[1:]
             t = type(value)
             value = value if not fill_none else None 
-            if shorthand:
-                if t == bool:
-                    group.add_argument("--" + key, ("-" + key[0:1]), default=value, action="store_true")
-                else:
-                    group.add_argument("--" + key, ("-" + key[0:1]), default=value, type=t)
+            if t == list:
+                group.add_argument("--" + key, nargs="+", default=value, type=str)
             else:
-                if t == bool:
-                    group.add_argument("--" + key, default=value, action="store_true")
+                if shorthand:
+                    if t == bool:
+                        group.add_argument("--" + key, ("-" + key[0:1]), default=value, action="store_true")
+                    else:
+                        group.add_argument("--" + key, ("-" + key[0:1]), default=value, type=t)
                 else:
-                    group.add_argument("--" + key, default=value, type=t)
+                    if t == bool:
+                        group.add_argument("--" + key, default=value, action="store_true")
+                    else:
+                        group.add_argument("--" + key, default=value, type=t)
 
     def extract(self, args):
         group = GroupParams()
@@ -49,10 +52,12 @@ class ModelParams(ParamGroup):
         self.sh_degree = 3
         self._source_path = ""
         self._model_path = ""
-        self._use_masks = None
+        self._use_masks = False
         self._images = "images"
         self._resolution = -1
         self._white_background = False
+        self.test_images = []
+        self.mask_path = ""
         self.data_device = "cuda"
         self.eval = False
         self.cap_max = -1

@@ -22,6 +22,7 @@ import uuid
 import numpy as np
 from tqdm import tqdm
 from utils.image_utils import psnr
+from lpipsPyTorch import lpips
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
 from scene.gaussian_model import build_scaling_rotation
@@ -100,8 +101,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         if dataset.use_masks:
             mask = viewpoint_cam.mask.cuda()
             mask = mask.repeat(3, 1, 1)
-            gt_image[~mask] = 0
-        Ll1 = l1_loss(image, gt_image)
+            gt_image *= mask
+            Ll1 = l1_loss(image, gt_image, mask)
+        else:
+            Ll1 = l1_loss(image, gt_image)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
 
         loss = loss + args.opacity_reg * torch.abs(gaussians.get_opacity).mean()
@@ -188,25 +191,33 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
             if config['cameras'] and len(config['cameras']) > 0:
                 l1_test = 0.0
                 psnr_test = 0.0
+                ssim_test = 0.0
+                lpips_test = 0.0
                 for idx, viewpoint in enumerate(config['cameras']):
                     image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
                     if masks:
-                        mask = viewpoint.mask.cuda()
+                        mask = viewpoint.mask_gt.cuda()
                         mask = mask.repeat(3, 1, 1)
-                        gt_image[~mask] = 0
+                        gt_image *= mask
                     if tb_writer and (idx < 5):
                         tb_writer.add_images(config['name'] + "_view_{}/render".format(viewpoint.image_name), image[None], global_step=iteration)
                         if iteration == testing_iterations[0]:
                             tb_writer.add_images(config['name'] + "_view_{}/ground_truth".format(viewpoint.image_name), gt_image[None], global_step=iteration)
                     l1_test += l1_loss(image, gt_image).mean().double()
                     psnr_test += psnr(image, gt_image).mean().double()
+                    ssim_test += ssim(image, gt_image, mask=mask if masks else None)
+                    lpips_test += lpips(image, gt_image, net_type='vgg')
+                lpips_test /= len(config['cameras'])
+                ssim_test /= len(config['cameras'])
                 psnr_test /= len(config['cameras'])
                 l1_test /= len(config['cameras'])          
-                print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, config['name'], l1_test, psnr_test))
+                print("\n[ITER {}] Evaluating {}: L1 {} PSNR {} SSIM {} LPIPS {}".format(iteration, config['name'], l1_test, psnr_test, ssim_test, lpips_test))
                 if tb_writer:
                     tb_writer.add_scalar(config['name'] + '/loss_viewpoint - l1_loss', l1_test, iteration)
                     tb_writer.add_scalar(config['name'] + '/loss_viewpoint - psnr', psnr_test, iteration)
+                    tb_writer.add_scalar(config['name'] + '/loss_viewpoint - ssim', ssim_test, iteration)
+                    tb_writer.add_scalar(config['name'] + '/loss_viewpoint - lpips', lpips_test, iteration)
 
         if tb_writer:
             tb_writer.add_histogram("scene/opacity_histogram", scene.gaussians.get_opacity.cpu().numpy().astype(np.float32), iteration)

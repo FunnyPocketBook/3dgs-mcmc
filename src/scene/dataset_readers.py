@@ -36,6 +36,8 @@ class CameraInfo(NamedTuple):
     height: int
     mask: np.array
     mask_path: str
+    mask_gt: np.array
+    mask_gt_path: str
 
 class SceneInfo(NamedTuple):
     point_cloud: BasicPointCloud
@@ -68,7 +70,7 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
-def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, masks_folder=None):
+def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, masks_path=None):
     cam_infos = []
     for idx, key in enumerate(cam_extrinsics):
         sys.stdout.write('\r')
@@ -102,14 +104,29 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, masks_folde
         image = Image.open(image_path)
         mask_path = None
         mask = None
-        if masks_folder:
-            mask_path = os.path.join(masks_folder, image_name + ".png")
-            mask = Image.open(mask_path)
+        mask_gt_path = None
+        mask_gt = None
+        if masks_path:
+            mask_path = os.path.join(masks_path, image_name + ".png")
+            if os.path.exists(mask_path):
+                mask = Image.open(mask_path)
+            else:
+                mask_path = image_path
+                mask = image
+        
+            mask_gt_path = os.path.join(os.path.dirname(masks_path), "masks_gt", image_name + ".png")
+            if os.path.exists(mask_gt_path):
+                mask_gt = Image.open(mask_gt_path)
+            else:
+                mask_gt = mask
+                mask_gt_path = mask_path
 
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                               image_path=image_path, image_name=image_name, width=width, height=height,
                               mask=mask,
-                              mask_path=mask_path)
+                              mask_path=mask_path,
+                              mask_gt=mask_gt,
+                              mask_gt_path=mask_gt_path)
         cam_infos.append(cam_info)
     sys.stdout.write('\n')
     return cam_infos
@@ -120,6 +137,7 @@ def fetchPly(path):
     positions = np.vstack([vertices['x'], vertices['y'], vertices['z']]).T
     colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
     normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
+    print(f"colors: {colors.shape}, positions: {positions.shape}, normals: {normals.shape}")
     return BasicPointCloud(points=positions, colors=colors, normals=normals)
 
 def storePly(path, xyz, rgb):
@@ -139,7 +157,7 @@ def storePly(path, xyz, rgb):
     ply_data = PlyData([vertex_element])
     ply_data.write(path)
 
-def readColmapSceneInfo(path, images, eval, llffhold=8, init_type="sfm", num_pts=100000, masks=None):
+def readColmapSceneInfo(path, images, eval, llffhold=8, init_type="sfm", num_pts=100000, masks_path=None, test_images=None):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -152,22 +170,38 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, init_type="sfm", num_pts
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
 
     reading_dir = "images" if images == None else images
-    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), masks_folder=os.path.join(path, "masks") if masks else None)
+    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), masks_path=masks_path if masks_path else None)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
     if eval:
-        train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 0]
-        test_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold == 0]
+        if test_images:
+            print(f"Using custom test images: {test_images}")
+            train_cam_infos = [c for c in cam_infos if c.image_name not in test_images]
+            test_cam_infos = [c for c in cam_infos if c.image_name in test_images]
+        else:
+            train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 0]
+            test_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold == 0]
     else:
         train_cam_infos = cam_infos
         test_cam_infos = []
 
-    if masks:
+    if masks_path is not None:
         masks = [c.mask for c in cam_infos if c.mask is not None]
     nerf_normalization = getNerfppNorm(train_cam_infos)
 
     if init_type == "sfm":
         ply_path = os.path.join(path, "sparse/0/points3D.ply")
+        bin_path = os.path.join(path, "sparse/0/points3D.bin")
+        txt_path = os.path.join(path, "sparse/0/points3D.txt")
+        if not os.path.exists(ply_path):
+            print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
+            try:
+                xyz, rgb, _ = read_points3D_binary(bin_path)
+            except:
+                xyz, rgb, _ = read_points3D_text(txt_path)
+            storePly(ply_path, xyz, rgb)
+    elif init_type == "sfm_clustering":
+        ply_path = os.path.join(path, "sparse/0/points3D_clustering.ply")
         bin_path = os.path.join(path, "sparse/0/points3D.bin")
         txt_path = os.path.join(path, "sparse/0/points3D.txt")
         if not os.path.exists(ply_path):
