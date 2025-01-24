@@ -12,6 +12,7 @@ services:
       - /home/dang/output:/workspace/output
       - /tmp/.X11-unix:/tmp/.X11-unix
       - ~/.Xauthority:/root/.Xauthority:rw
+      - ~/.ssh:/root/.ssh:ro
     environment:
       - DISPLAY=$DISPLAY
     deploy:

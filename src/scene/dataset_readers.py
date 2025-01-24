@@ -108,10 +108,18 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, masks_path=
         mask_gt = None
         if masks_path:
             mask_path = os.path.join(masks_path, image_name + ".png")
-            mask = Image.open(mask_path)
+            if os.path.exists(mask_path):
+                mask = Image.open(mask_path)
+            else:
+                mask_path = image_path
+                mask = image
         
             mask_gt_path = os.path.join(os.path.dirname(masks_path), "masks_gt", image_name + ".png")
-            mask_gt = Image.open(mask_gt_path)
+            if os.path.exists(mask_gt_path):
+                mask_gt = Image.open(mask_gt_path)
+            else:
+                mask_gt = mask
+                mask_gt_path = mask_path
 
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                               image_path=image_path, image_name=image_name, width=width, height=height,
@@ -183,6 +191,17 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, init_type="sfm", num_pts
 
     if init_type == "sfm":
         ply_path = os.path.join(path, "sparse/0/points3D.ply")
+        bin_path = os.path.join(path, "sparse/0/points3D.bin")
+        txt_path = os.path.join(path, "sparse/0/points3D.txt")
+        if not os.path.exists(ply_path):
+            print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
+            try:
+                xyz, rgb, _ = read_points3D_binary(bin_path)
+            except:
+                xyz, rgb, _ = read_points3D_text(txt_path)
+            storePly(ply_path, xyz, rgb)
+    elif init_type == "sfm_clustering":
+        ply_path = os.path.join(path, "sparse/0/points3D_clustering.ply")
         bin_path = os.path.join(path, "sparse/0/points3D.bin")
         txt_path = os.path.join(path, "sparse/0/points3D.txt")
         if not os.path.exists(ply_path):
