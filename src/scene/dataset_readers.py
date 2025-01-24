@@ -166,11 +166,12 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, init_type="sfm", num_pts
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
     if eval:
-        train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 0]
         if test_images:
             print(f"Using custom test images: {test_images}")
+            train_cam_infos = [c for c in cam_infos if c.image_name not in test_images]
             test_cam_infos = [c for c in cam_infos if c.image_name in test_images]
         else:
+            train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 0]
             test_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold == 0]
     else:
         train_cam_infos = cam_infos
