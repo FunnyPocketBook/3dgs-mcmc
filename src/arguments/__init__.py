@@ -50,10 +50,11 @@ class ModelParams(ParamGroup):
         self._source_path = ""
         self._model_path = ""
         self._use_masks = False
-        self.mask_path = ""
         self._images = "images"
         self._resolution = -1
         self._white_background = False
+        self.test_images = None
+        self.mask_path = ""
         self.data_device = "cuda"
         self.eval = False
         self.cap_max = -1
